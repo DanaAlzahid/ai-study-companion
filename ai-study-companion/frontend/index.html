@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI Study Companion</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    body { margin: 0; background: #0f1220; color: #e8e9ee; }
+    .wrap { max-width: 800px; margin: 40px auto; padding: 24px; background: #151935; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+    h1 { margin: 0 0 8px; font-size: 26px; }
+    p.hint { margin: 0 0 20px; opacity: .75; }
+    textarea { width: 100%; min-height: 160px; padding: 12px; border-radius: 10px; border: 1px solid #2b3260; background: #0f132b; color: #e8e9ee; font-size: 14px; resize: vertical; }
+    .actions { margin-top: 12px; display: flex; gap: 10px; align-items: center; }
+    button { padding: 10px 16px; border: none; border-radius: 10px; background: #5865f2; color: white; font-weight: 600; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    .status { font-size: 13px; opacity: .8; }
+    .cards { margin-top: 22px; display: grid; gap: 10px; }
+    .card { padding: 12px 14px; background: #0f132b; border: 1px solid #2b3260; border-radius: 12px; }
+    .error { color: #ff6b6b; margin-top: 10px; font-weight: 600; }
+    .ok { color: #7cffb2; margin-left: 6px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>AI Study Companion</h1>
+    <p class="hint">Paste text and click <strong>Summarize</strong>. The server must be running on <code>http://127.0.0.1:8001</code>.</p>
+
+    <textarea id="inputText" placeholder="Paste lecture notes or paragraphs here..."></textarea>
+
+    <div class="actions">
+      <button id="runBtn" onclick="summarize()">Summarize</button>
+      <span class="status" id="status"></span>
+    </div>
+
+    <div id="error" class="error" style="display:none;"></div>
+
+    <div class="cards" id="results"></div>
+  </div>
+
+  <script>
+    const API_BASE = "http://127.0.0.1:8001";
+
+    async function summarize() {
+      const textEl = document.getElementById("inputText");
+      const btn = document.getElementById("runBtn");
+      const status = document.getElementById("status");
+      const error = document.getElementById("error");
+      const results = document.getElementById("results");
+      error.style.display = "none";
+      error.textContent = "";
+      results.innerHTML = "";
+
+      const text = textEl.value.trim();
+      if (!text) {
+        error.textContent = "Please paste some text first.";
+        error.style.display = "block";
+        return;
+      }
+
+      btn.disabled = true;
+      status.textContent = "Summarizing…";
+
+      try {
+        const res = await fetch(`${API_BASE}/summarize`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text })
+        });
+
+        if (!res.ok) {
+          const msg = await res.text();
+          throw new Error(`HTTP ${res.status}: ${msg}`);
+        }
+
+        const data = await res.json();
+        (data.bullets || []).forEach((b, i) => {
+          const div = document.createElement("div");
+          div.className = "card";
+          div.textContent = `• ${b}`;
+          results.appendChild(div);
+        });
+
+        status.innerHTML = `Done <span class="ok">●</span>`;
+      } catch (e) {
+        error.textContent = e.message || String(e);
+        error.style.display = "block";
+        status.textContent = "";
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // Optional: quick health check to show if the server is reachable
+    (async function healthPing(){
+      try {
+        const res = await fetch(`${API_BASE}/health`);
+        if (res.ok) {
+          document.getElementById("status").innerHTML = `Server ready <span class="ok">●</span>`;
+        }
+      } catch (e) {
+        // ignore—user will still be able to click Summarize once server is up
+      }
+    })();
+  </script>
+</body>
+</html>
